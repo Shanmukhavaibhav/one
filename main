@@ -1,0 +1,12 @@
+from mailmanclient import Client
+
+# Connect to the Mailman 3.1 REST API with base URL and credentials
+# Production servers typically listen on port 8001
+client = Client('http://localhost:8001/3.1', 'restadmin', 'restpass')
+
+# Check system version details
+print(f"Connected to Mailman API version: {client.system.api_version}")
+
+# Get all existing mailing lists
+for ml in client.lists:
+    print(f"List Name: {ml.fqdn_listname}")
