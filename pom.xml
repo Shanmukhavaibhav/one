@@ -46,3 +46,180 @@
     </build>
 
 </project>
+
+server.port=8080
+
+mailman.base-url=http://127.0.0.1:8001/3.1
+mailman.username=restadmin
+mailman.password=CHANGE_THIS_PASSWORD
+
+mailman.base-url=${MAILMAN_BASE_URL}
+mailman.username=${MAILMAN_USERNAME}
+mailman.password=${MAILMAN_PASSWORD}
+
+package com.example.mailman;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class MailmanApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(MailmanApplication.class, args);
+    }
+}
+
+src/main/java/com/example/mailman/MailmanClient.java
+
+package com.example.mailman;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Base64;
+import java.util.Map;
+
+@Service
+public class MailmanClient {
+
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    @Value("${mailman.base-url}")
+    private String baseUrl;
+
+    @Value("${mailman.username}")
+    private String username;
+
+    @Value("${mailman.password}")
+    private String password;
+
+    private HttpHeaders headers() {
+
+        HttpHeaders headers = new HttpHeaders();
+
+        String credentials = username + ":" + password;
+
+        String encoded = Base64.getEncoder()
+                .encodeToString(credentials.getBytes());
+
+        headers.set("Authorization", "Basic " + encoded);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setAccept(
+                java.util.List.of(MediaType.APPLICATION_JSON)
+        );
+
+        return headers;
+    }
+
+    public String getLists() {
+
+        String url = baseUrl + "/lists";
+
+        HttpEntity<Void> entity =
+                new HttpEntity<>(headers());
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        url,
+                        HttpMethod.GET,
+                        entity,
+                        String.class
+                );
+
+        return response.getBody();
+    }
+
+    public String getList(String fqdnList) {
+
+        String url = baseUrl + "/lists/" + fqdnList;
+
+        HttpEntity<Void> entity =
+                new HttpEntity<>(headers());
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        url,
+                        HttpMethod.GET,
+                        entity,
+                        String.class
+                );
+
+        return response.getBody();
+    }
+
+    public String createList(String fqdnList,
+                             String displayName,
+                             String adminEmail) {
+
+        String url = baseUrl + "/lists";
+
+        Map<String, Object> body = Map.of(
+                "fqdn_listname", fqdnList,
+                "display_name", displayName,
+                "admin_email", adminEmail
+        );
+
+        HttpEntity<Map<String, Object>> entity =
+                new HttpEntity<>(body, headers());
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        url,
+                        HttpMethod.POST,
+                        entity,
+                        String.class
+                );
+
+        return response.getBody();
+    }
+}
+
+package com.example.mailman;
+
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/mailman")
+public class MailmanController {
+
+    private final MailmanClient mailmanClient;
+
+    public MailmanController(MailmanClient mailmanClient) {
+        this.mailmanClient = mailmanClient;
+    }
+
+    @GetMapping("/lists")
+    public String lists() {
+        return mailmanClient.getLists();
+    }
+
+    @GetMapping("/lists/{list}")
+    public String list(@PathVariable String list) {
+        return mailmanClient.getList(list);
+    }
+
+    @PostMapping("/lists")
+    public String createList(
+            @RequestParam String list,
+            @RequestParam String displayName,
+            @RequestParam String adminEmail) {
+
+        return mailmanClient.createList(
+                list,
+                displayName,
+                adminEmail
+        );
+    }
+}
+
+curl http://localhost:8080/api/mailman/lists
+curl -X POST \
+  "http://localhost:8080/api/mailman/lists?list=developers@example.com&displayName=Developers&adminEmail=admin@example.com"
+
+sudo mkdir -p /opt/mailman-client
+sudo useradd --system --home /opt/mailman-client mailmanapp
+sudo chown -R mailmanapp:mailmanapp /opt/mailman-client
+sudo nano /etc/systemd/system/mailman-client.service
