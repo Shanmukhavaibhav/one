@@ -1,0 +1,60 @@
+from mailmanclient import Client
+
+# 1. Initialize your Mailman 3.1 REST Client
+API_URL = 'http://localhost:8001/3.1/'
+API_USER = 'restadmin'
+API_PASS = 'restpass'
+
+client = Client(API_URL, API_USER, API_PASS)
+
+def configure_list_templates_and_footers(list_fqdn):
+    try:
+        # Retrieve the target mailing list object
+        mlist = client.get_list(list_fqdn)
+        print(f"Modifying templates for: {mlist.fqdn_listname}")
+        
+        # Pull down the current live settings dictionary reference
+        settings = mlist.settings
+        
+        # 2. Configure Dynamic Headers and Custom Message Footers
+        # Mailman 3 parses standard tags like $list_name, $user_address, and $display_name
+        settings['msg_header'] = "Welcome to today's digest from $list_name!\n----------------------------------------\n"
+        
+        settings['msg_footer'] = (
+            "\n----------------------------------------\n"
+            "You are receiving this because you subscribed to $list_name as $user_address.\n"
+            "To manage your subscription or leave this list, visit:\n"
+            "http://example.com\n"
+        )
+        
+        # 3. Toggle Welcome / Goodbye Action Flags
+        # True = Mailman sends automated system notifications during subscription transitions
+        settings['send_welcome_message'] = True
+        settings['send_goodbye_message'] = True
+        
+        # 4. Define Automated Transactional Email Content Blocks
+        settings['welcome_message_uri'] = (
+            "Hello $display_name,\n\n"
+            "Thank you for joining the $list_name mailing list! Your subscription is now active.\n"
+            "Please save this email for future reference.\n\n"
+            "Best Regards,\n"
+            "The Operations Team"
+        )
+        
+        settings['goodbye_message_uri'] = (
+            "Hello,\n\n"
+            "This email confirms you have successfully unsubscribed from $list_name.\n"
+            "We are sorry to see you go!\n\n"
+            "Best Regards,\n"
+            "The Operations Team"
+        )
+        
+        # 5. Commit changes back across the REST API pipeline
+        settings.save()
+        print("Successfully updated headers, footers, and automated notification templates.")
+        
+    except Exception as e:
+        print(f"Error configuring list settings: {e}")
+
+# Usage (Pass the fully qualified list name)
+configure_list_templates_and_footers('announcements@example.com')
